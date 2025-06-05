@@ -1,0 +1,24 @@
+# PokéCertify Frontend Dockerfile
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y gcc && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements and install
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy frontend code
+COPY src/frontend /app/src/frontend
+COPY src/shared /app/src/shared
+
+# Copy .env if present (for local dev only, not for production)
+COPY .env .env
+
+# Expose Gradio default port
+EXPOSE 7860
+
+# Entrypoint: run Gradio app
+CMD ["python", "src/frontend/app.py"]

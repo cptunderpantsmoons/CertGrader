@@ -1,0 +1,56 @@
+# PokéCertify .gitignore
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.sqlite3
+*.db
+
+# Environment
+.env
+.env.*
+
+# VSCode
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+*.pid
+*.log
+
+# Certificates, secrets, and keys
+*.pem
+*.key
+*.crt
+
+# Test/coverage
+htmlcov/
+.coverage
+.tox/
+.nox/
+.cache/
+pytest_cache/
+coverage.xml
+
+# Build
+build/
+dist/
+*.egg-info/
+.eggs/
+*.manifest
+
+# Node/npm (if any)
+node_modules/
+
+# Misc
+*.bak
+*.swp
+*.swo
+
+# Ignore local data
+pokecertify.db
