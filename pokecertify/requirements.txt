@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+python-multipart
+requests
+qrcode
+reportlab
+pillow
+gradio
+web3
+modal
