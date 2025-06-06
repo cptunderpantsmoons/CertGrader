@@ -14,9 +14,10 @@ import base64
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Image, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
+import os
 
-# Shared config (to be imported from shared/config.py in production)
-API_URL = "http://localhost:8000"
+# Shared config (can be overridden via environment variable)
+API_URL = os.getenv("POKECERTIFY_API_URL", "http://localhost:8000")
 
 def upload_card(image, card_name, card_info, owner):
     """Upload a card for grading and storage."""

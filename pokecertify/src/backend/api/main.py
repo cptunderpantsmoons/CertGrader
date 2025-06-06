@@ -6,7 +6,7 @@ Main API implementation for card upload, verification, trading, and collection r
 Author: PokéCertify Team
 """
 
-from fastapi import FastAPI, File, UploadFile, HTTPException, Form
+from fastapi import FastAPI, File, UploadFile, HTTPException, Form, Body
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import sqlite3
@@ -35,10 +35,16 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="PokéCertify API")
 
-# Allow CORS for frontend
+# Allow CORS for frontend. Origins can be configured via environment variable
+allowed_origins_env = os.getenv("POKECERTIFY_ALLOWED_ORIGINS", "*")
+origins = (
+    ["*"]
+    if allowed_origins_env.strip() == "*"
+    else [o.strip() for o in allowed_origins_env.split(",") if o.strip()]
+)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # For production, restrict this!
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -171,12 +177,22 @@ async def get_card(card_id: str):
         logger.error(f"Error retrieving card: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Retrieval failed: {str(e)}")
 
+from pydantic import BaseModel
+
+
+class TradeRequest(BaseModel):
+    card_id: str
+    to_owner: str
+
+
 @app.post("/trade")
-async def trade_card(card_id: str = Form(""), to_owner: str = Form("")):
+async def trade_card(trade: TradeRequest = Body(...)):
     """
     Transfer card ownership and log the trade.
     """
     try:
+        card_id = trade.card_id
+        to_owner = trade.to_owner
         if not to_owner:
             raise HTTPException(status_code=400, detail="Missing to_owner")
         
