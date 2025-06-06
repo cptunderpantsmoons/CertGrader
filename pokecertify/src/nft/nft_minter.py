@@ -9,13 +9,24 @@ Author: PokéCertify Team
 import os
 import json
 import logging
-from web3 import Web3
+try:
+    from web3 import Web3  # type: ignore
+except Exception:  # pragma: no cover - optional dependency
+    Web3 = None  # type: ignore
 
 # Load configuration from environment or shared config
 ALCHEMY_URL = os.getenv("ALCHEMY_URL", "https://polygon-mumbai.g.alchemy.com/v2/YOUR_API_KEY")
 CONTRACT_ADDRESS = os.getenv("NFT_CONTRACT_ADDRESS", "YOUR_CONTRACT_ADDRESS")
 PRIVATE_KEY = os.getenv("NFT_MINTER_PRIVATE_KEY", "YOUR_PRIVATE_KEY")
 CONTRACT_ABI_PATH = os.getenv("NFT_CONTRACT_ABI_PATH", "contract_abi.json")
+
+# Web3 objects are defined at module load so tests can monkeypatch them.
+if Web3 is not None:
+    w3 = Web3(Web3.HTTPProvider(ALCHEMY_URL))
+else:  # pragma: no cover - allows tests without Web3
+    w3 = None
+CONTRACT_ABI = None
+ACCOUNT = None
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -37,13 +48,17 @@ def mint_nft(card_id: str, owner: str):
         dict: Transaction hash or error
     """
     try:
-        w3 = Web3(Web3.HTTPProvider(ALCHEMY_URL))
-        if not w3.is_connected():
+        global CONTRACT_ABI, ACCOUNT
+        if w3 is None or not w3.is_connected():
             raise Exception("Failed to connect to Polygon testnet")
 
-        contract_abi = load_contract_abi()
-        contract = w3.eth.contract(address=Web3.to_checksum_address(CONTRACT_ADDRESS), abi=contract_abi)
-        account = w3.eth.account.from_key(PRIVATE_KEY)
+        if CONTRACT_ABI is None:
+            CONTRACT_ABI = load_contract_abi()
+        contract = w3.eth.contract(address=CONTRACT_ADDRESS, abi=CONTRACT_ABI)
+
+        if ACCOUNT is None:
+            ACCOUNT = w3.eth.account.from_key(PRIVATE_KEY)
+        account = ACCOUNT
 
         # Build transaction
         nonce = w3.eth.get_transaction_count(account.address)

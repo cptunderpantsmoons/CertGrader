@@ -6,14 +6,17 @@ Main API implementation for card upload, verification, trading, and collection r
 Author: PokéCertify Team
 """
 
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi import FastAPI, File, UploadFile, HTTPException, Form
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import sqlite3
 import uuid
 import base64
 import logging
-import modal
+try:
+    import modal  # type: ignore
+except Exception:  # pragma: no cover - optional dependency
+    modal = None
 from datetime import datetime
 import os
 
@@ -41,14 +44,28 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize Modal client
-stub = modal.Stub.lookup(MODAL_GRADER_STUB)
-grader = modal.Function.lookup(MODAL_GRADER_STUB, "grade_card")
+# Initialize Modal client using the updated API. Lookups may fail in offline
+# environments (e.g. during unit tests) so fall back to a dummy object that is
+# easily patchable.
+try:  # pragma: no cover - external dependency
+    if modal is None:
+        raise RuntimeError("Modal SDK not available")
+    stub = modal.App.lookup(MODAL_GRADER_STUB)
+    grader = modal.Function.lookup(MODAL_GRADER_STUB, "grade_card")
+except Exception as exc:  # fallback for tests
+    logger.warning("Modal lookup failed: %s", exc)
+
+    class _DummyGrader:
+        async def remote(self, *_args, **_kwargs):
+            raise RuntimeError("Modal not available")
+
+    grader = _DummyGrader()
 
 def get_db_connection():
     """Create a new SQLite database connection."""
     try:
-        conn = sqlite3.connect(DB_PATH)
+        db_path = os.getenv("POKECERTIFY_DB_PATH", DB_PATH)
+        conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
         return conn
     except sqlite3.Error as e:
@@ -56,7 +73,12 @@ def get_db_connection():
         raise HTTPException(status_code=500, detail="Database connection failed")
 
 @app.post("/upload")
-async def upload_card(file: UploadFile = File(...), card_name: str = "", card_info: str = "", owner: str = ""):
+async def upload_card(
+    file: UploadFile = File(...),
+    card_name: str = Form(""),
+    card_info: str = Form(""),
+    owner: str = Form(""),
+):
     """
     Upload a card image, grade it, and store the result.
     """
@@ -115,6 +137,8 @@ async def upload_card(file: UploadFile = File(...), card_name: str = "", card_in
             "date_added": datetime.utcnow().isoformat()
         }
     
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error processing upload: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
@@ -141,12 +165,14 @@ async def get_card(card_id: str):
             }
         finally:
             conn.close()
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error retrieving card: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Retrieval failed: {str(e)}")
 
 @app.post("/trade")
-async def trade_card(card_id: str, to_owner: str):
+async def trade_card(card_id: str = Form(""), to_owner: str = Form("")):
     """
     Transfer card ownership and log the trade.
     """
@@ -185,6 +211,8 @@ async def trade_card(card_id: str, to_owner: str):
             }
         finally:
             conn.close()
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error processing trade: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Trade failed: {str(e)}")
@@ -211,6 +239,8 @@ async def get_collection(owner: str):
             ]
         finally:
             conn.close()
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error retrieving collection: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Collection retrieval failed: {str(e)}")
